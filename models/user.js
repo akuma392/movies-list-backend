@@ -62,7 +62,8 @@ userSchema.methods.userJSON = function (token) {
     userName: this.userName,
     avatar: this.avatar,
     token: token,
-    watchlist: this.watchlist
+    watchlist: this.watchlist,
+    userId: this.id
   };
 };
 
