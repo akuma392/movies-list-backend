@@ -2,7 +2,7 @@ var express = require("express");
 var router = express.Router();
 
 router.get("/", (req, res, next) => {
-  res.json({ message: "welcome to sheenu api" });
+  res.json({ message: "welcome to movie backend api" });
 });
 router.get("/test-env", (req, res) => {
   res.json({
