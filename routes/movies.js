@@ -31,35 +31,103 @@ router.get("/", auth.verifyToken, async (req, res, next) => {
 
 router.post("/watchlist", auth.verifyToken, async (req, res, next) => {
   try {
-    // Create new Movie with public=false
-    let movie = new Movie({
-      title: req.body.title,
-      plot: req.body.plot,
-      rating: req.body.rating,
-      availableOn: req.body.availableOn,
-      type: req.body.type,
-      genres: req.body.genres,
-      trailer: req.body.trailer,
-      date: req.body.date,
-      image: req.body.image,
-      imdbId: req.body.imdbId,
-      public: false,
-      hidden: false
-    });
-    let savedMovie = await movie.save();
+    const { imdbId } = req.body;
 
-    // Add to user's watchlist
+    // 1. Find or create movie
+    let movie = await Movie.findOne({ imdbId });
+    if (!movie) {
+      movie = new Movie({
+        title: req.body.title,
+        plot: req.body.plot,
+        rating: req.body.rating,
+        availableOn: req.body.availableOn,
+        type: req.body.type,
+        genres: req.body.genres,
+        trailer: req.body.trailer,
+        date: req.body.date,
+        image: req.body.image,
+        imdbId: imdbId,
+        public: false,
+        hidden: false,
+      });
+      movie = await movie.save();
+    }
+
+    // 2. Get user
     let user = await User.findById(req.user.userId);
+
+    // 3. Check if already in watchlist
+    const alreadyInWatchlist = user.watchList.some(
+      (entry) => entry.movie.toString() === movie._id.toString()
+    );
+
+    if (alreadyInWatchlist) {
+      return res.status(400).json({
+        message: "Movie is already in watchlist",
+        movie,
+        watchList: user.watchList,
+      });
+    }
+
+    // 4. Add to watchlist
     user.watchList.push({
-      movie: savedMovie._id,
-      isWatched: false
+      movie: movie._id,
+      isWatched: false,
     });
     await user.save();
 
     res.status(201).json({
-      message: "Movie created and added to watchlist",
-      movie: savedMovie,
-      watchList: user.watchList
+      message: "Movie added to watchlist",
+      movie,
+      watchList: user.watchList,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put("/watchlist/:movieId", auth.verifyToken, async (req, res, next) => {
+  try {
+    const { movieId } = req.params;
+    const { availableOn, isWatched } = req.body;
+
+    // 1. Find movie
+    let movie = await Movie.findById(movieId);
+    if (!movie) {
+      return res.status(404).json({ message: "Movie not found" });
+    }
+
+    // 2. Update availableOn only if different
+    if (availableOn !== undefined && availableOn !== movie.availableOn) {
+      movie.availableOn = availableOn;
+      await movie.save();
+    }
+
+    // 3. Find user
+    let user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // 4. Find watchlist entry
+    let watchItem = user.watchList.find(
+      (entry) => entry.movie.toString() === movieId
+    );
+    if (!watchItem) {
+      return res.status(400).json({ message: "Movie not in watchlist" });
+    }
+
+    // 5. Update isWatched if provided
+    if (isWatched !== undefined && isWatched !== watchItem.isWatched) {
+      watchItem.isWatched = isWatched;
+    }
+
+    await user.save();
+
+    res.json({
+      message: "Watchlist updated successfully",
+      movie,
+      watchList: user.watchList,
     });
   } catch (err) {
     next(err);
